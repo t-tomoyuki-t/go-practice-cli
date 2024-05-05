@@ -4,24 +4,48 @@ Copyright © 2024 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"slices"
 
 	"github.com/spf13/cobra"
 )
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "go-practice-cli",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Use:   "diff",
+	Short: "Check if two files are equal",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("動作確認")
+		expected, err := readFiles(args[0])
+		if err != nil {
+			return err
+		}
+
+		actual, err := readFiles(args[1])
+		if err != nil {
+			return err
+		}
+
+		shortage := make([]string, 0)
+
+		// deleteによってexpectedのインデックスがずれている？
+		for _, v := range expected {
+			if j := slices.Index(actual, v); j != -1 {
+				actual = deleteItem(actual, j)
+			} else {
+				shortage = append(shortage, v)
+			}
+		}
+
+		if len(shortage) == 0 && len(actual) == 0 {
+			fmt.Println("Two files are equal")
+		} else {
+			fmt.Println("Two files are not equal")
+			fmt.Printf("Shortage: %s\n", shortage)
+			fmt.Printf("Extra: %s\n", actual)
+		}
+
 		return nil
 	},
 }
@@ -36,13 +60,35 @@ func Execute() {
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
+	//rootCmd.Flags().StringP("expected", "e", "", "Expected file path")
+	//rootCmd.Flags().StringP("actual", "a", "", "Actual file path")
+}
 
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.go-practice-cli.yaml)")
+func readFiles(filePath string) ([]string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		fmt.Printf("%s : %v\n", filePath, err)
+		return nil, err
+	}
 
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	defer file.Close()
+
+	lines := make([]string, 0)
+	scanner := bufio.NewScanner(file)
+
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+
+	if err = scanner.Err(); err != nil {
+		fmt.Printf("%s : %v\n", filePath, err)
+		return nil, err
+	}
+
+	return lines, nil
+}
+
+func deleteItem(list []string, index int) []string {
+	list[index] = list[len(list)-1]
+	return list[:len(list)-1]
 }
